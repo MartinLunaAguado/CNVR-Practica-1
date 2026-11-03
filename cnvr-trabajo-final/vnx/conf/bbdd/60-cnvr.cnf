@@ -1,0 +1,6 @@
+# Configuración adicional de MariaDB para el trabajo final CNVR.
+# Por defecto MariaDB solo escucha en 127.0.0.1; así acepta conexiones
+# desde la VLAN (servidores web y admin).
+[mysqld]
+bind-address = 0.0.0.0
+port         = 3306

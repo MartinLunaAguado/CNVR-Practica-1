@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  cnvr-lxc-vlan.xml  (Apartado 2, punto 6 del enunciado)
+  ============================================================================
+  Escenario VNX complementario con dos contenedores LXC conectados a la VLAN
+  compartida con los Pods de Kubernetes:
+     - bbdd : MariaDB + SSH      -> 10.1.100.21
+     - logs : rsyslog (514) + SSH -> 10.1.100.22
+
+  Se basa en la idea de "k8s_lab-vms-vlan.xml" (final de la P1.3):
+  los LXC se conectan a VlanNet (la misma red a la que están conectados los
+  workers) y se etiquetan en una VLAN concreta (tag 100).
+
+  ¡¡ANTES DE USARLO!! abrid el k8s_lab-vms-vlan.xml del laboratorio y copiad de
+  allí, si difieren: la ruta del filesystem LXC, la definición de la red
+  VlanNet y la sintaxis exacta del bloque <vlan>.
+
+  Uso: ver scripts/03-arranque-lxc.sh (crear el escenario y lanzar la
+  secuencia "configurar") y scripts/99-borrar.sh (destruirlo).
+  ============================================================================
+-->
+<vnx xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:noNamespaceSchemaLocation="/usr/share/xml/vnx/vnx-2.00.xsd">
+  <global>
+    <version>2.0</version>
+    <scenario_name>cnvr_tf_lxc_vlan</scenario_name>
+    <automac offset="50"/>
+    <vm_mgmt type="none"/>
+    <vm_defaults>
+      <console id="0" display="no"/>
+      <console id="1" display="yes"/>
+    </vm_defaults>
+  </global>
+
+  <!-- Red compartida con los nodos worker (ya creada por el escenario k8s).
+       Es un switch Open vSwitch: los puertos de los LXC serán de acceso a la
+       VLAN 100 y el de los workers lleva las tramas etiquetadas (trunk). -->
+  <net name="VlanNet" mode="openvswitch"/>
+
+  <!-- Salida a Internet (solo para poder hacer apt-get install) -->
+  <net name="virbr0" mode="virtual_bridge" managed="no"/>
+
+  <!-- ======================================================== BBDD ===== -->
+  <vm name="bbdd" type="lxc" arch="x86_64">
+    <filesystem type="cow">/usr/share/vnx/filesystems/rootfs_lxc_ubuntu64</filesystem>
+
+    <if id="1" net="VlanNet">
+      <vlan>
+        <tag id="100"/>
+      </vlan>
+      <ipv4>10.1.100.21/24</ipv4>
+    </if>
+    <if id="9" net="virbr0">
+      <ipv4>dhcp</ipv4>
+    </if>
+
+    <!-- filetree: copia ficheros del host al contenedor (a /root/conf) -->
+    <filetree seq="configurar" root="/root/conf/">conf/ssh</filetree>
+    <filetree seq="configurar" root="/root/conf/">conf/bbdd</filetree>
+
+    <!-- exec: comandos que se ejecutan dentro del contenedor, en orden -->
+    <exec seq="configurar" type="verbatim" ostype="system">
+      export DEBIAN_FRONTEND=noninteractive;
+      apt-get update;
+      apt-get install -y mariadb-server mariadb-client openssh-server
+    </exec>
+    <!-- SSH: solo con clave pública (la del admin) -->
+    <exec seq="configurar" type="verbatim" ostype="system">
+      mkdir -p /root/.ssh;
+      cp /root/conf/authorized_keys /root/.ssh/authorized_keys;
+      chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys;
+      sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config;
+      sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config;
+      systemctl enable ssh; systemctl restart ssh
+    </exec>
+    <!-- MariaDB: escuchar en todas las interfaces y crear BD/usuario -->
+    <exec seq="configurar" type="verbatim" ostype="system">
+      cp /root/conf/60-cnvr.cnf /etc/mysql/mariadb.conf.d/60-cnvr.cnf;
+      systemctl enable mariadb; systemctl restart mariadb;
+      mysql &lt; /root/conf/init.sql
+    </exec>
+  </vm>
+
+  <!-- ================================================ Servidor de logs ===== -->
+  <vm name="logs" type="lxc" arch="x86_64">
+    <filesystem type="cow">/usr/share/vnx/filesystems/rootfs_lxc_ubuntu64</filesystem>
+
+    <if id="1" net="VlanNet">
+      <vlan>
+        <tag id="100"/>
+      </vlan>
+      <ipv4>10.1.100.22/24</ipv4>
+    </if>
+    <if id="9" net="virbr0">
+      <ipv4>dhcp</ipv4>
+    </if>
+
+    <filetree seq="configurar" root="/root/conf/">conf/ssh</filetree>
+    <filetree seq="configurar" root="/root/conf/">conf/logs</filetree>
+
+    <exec seq="configurar" type="verbatim" ostype="system">
+      export DEBIAN_FRONTEND=noninteractive;
+      apt-get update;
+      apt-get install -y rsyslog openssh-server
+    </exec>
+    <exec seq="configurar" type="verbatim" ostype="system">
+      mkdir -p /root/.ssh;
+      cp /root/conf/authorized_keys /root/.ssh/authorized_keys;
+      chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys;
+      sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config;
+      sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config;
+      systemctl enable ssh; systemctl restart ssh
+    </exec>
+    <!-- rsyslog: recibir logs remotos por UDP/TCP 514 -->
+    <exec seq="configurar" type="verbatim" ostype="system">
+      cp /root/conf/10-remoto.conf /etc/rsyslog.d/10-remoto.conf;
+      mkdir -p /var/log/remoto;
+      systemctl enable rsyslog; systemctl restart rsyslog
+    </exec>
+  </vm>
+</vnx>

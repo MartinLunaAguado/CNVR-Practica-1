@@ -1,0 +1,1 @@
+Aquí se generan las claves con scripts/00-generar-claves.sh (NO subirlas a git)

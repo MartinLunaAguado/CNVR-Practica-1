@@ -1,0 +1,1 @@
+# Aquí se copia keys/admin_key.pub (lo hace scripts/00-generar-claves.sh)
