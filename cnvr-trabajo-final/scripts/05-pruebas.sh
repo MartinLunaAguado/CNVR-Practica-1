@@ -34,15 +34,17 @@ sep "P4. SSH host -> admin (debe FUNCIONAR)"
 $SSH_ADMIN hostname
 
 sep "P5. SSH al admin desde OTRO origen (debe FALLAR: NetworkPolicy ipBlock)"
-echo "Desde k8s-master (10.10.10.10):"
-ssh root@k8s-master "timeout 5 bash -c '</dev/tcp/$WORKER1_IP/$ADMIN_NODEPORT' && echo ABIERTO || echo BLOQUEADO"
+echo "Desde k8s-master ($MASTER_IP):"
+ssh root@$MASTER_IP "timeout 5 bash -c '</dev/tcp/$WORKER1_IP/$ADMIN_NODEPORT' && echo ABIERTO || echo BLOQUEADO"
+echo "Por worker2 ($WORKER2_IP), que no tiene Pod admin (externalTrafficPolicy: Local):"
+timeout 5 bash -c "</dev/tcp/$WORKER2_IP/$ADMIN_NODEPORT" && echo ABIERTO || echo BLOQUEADO
 
 sep "P6. Acceso directo a Pods web desde fuera del Ingress (debe FALLAR)"
 WEBIP=$(kubectl get pods -l app=web -o jsonpath='{.items[0].status.podIP}')
 SVCIP=$(kubectl get svc web-svc -o jsonpath='{.spec.clusterIP}')
 echo "Desde k8s-master a la IP del Pod ($WEBIP:80) y al Service ($SVCIP:8080):"
-ssh root@k8s-master "curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://$WEBIP || echo BLOQUEADO"
-ssh root@k8s-master "curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://$SVCIP:8080 || echo BLOQUEADO"
+ssh root@$MASTER_IP "curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://$WEBIP || echo BLOQUEADO"
+ssh root@$MASTER_IP "curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://$SVCIP:8080 || echo BLOQUEADO"
 
 sep "P7. Desde admin: ping y SSH por la VLAN a web, bbdd y logs"
 WEB_VLAN_IPS=$(kubectl get pods -l app=web -o json | python3 -c '

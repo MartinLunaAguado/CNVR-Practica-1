@@ -1,0 +1,16 @@
+# --- Claves SSH generadas por scripts/00-generar-claves.sh (¡NUNCA a git!) ---
+cnvr-trabajo-final/shared/keys/*
+!cnvr-trabajo-final/shared/keys/LEEME.txt
+cnvr-trabajo-final/vnx/conf/ssh/authorized_keys
+
+# --- Terraform: proveedores descargados, estado y planes ---
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# --- Varios ---
+*.swp
+.DS_Store
+Thumbs.db

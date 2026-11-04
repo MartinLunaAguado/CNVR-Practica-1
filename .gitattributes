@@ -1,0 +1,3 @@
+# Todo se ejecuta en Linux (laboratorio): forzar finales de línea LF también
+# en Windows, para que los scripts no fallen con "$'\r': command not found".
+* text=auto eol=lf

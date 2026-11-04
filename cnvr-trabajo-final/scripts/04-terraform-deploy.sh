@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # 04-terraform-deploy.sh  (ejecutar DENTRO de la máquina "terraform")
-#     ssh root@terraform   ->   bash /shared/scripts/04-terraform-deploy.sh
+#     ssh root@10.10.10.13   ->   bash /shared/scripts/04-terraform-deploy.sh
 # -----------------------------------------------------------------------------
 # (Este script se copia a /shared/scripts con 01-arranque-escenario.sh si
 #  copiáis también la carpeta scripts; si no, ejecutad los comandos a mano.)

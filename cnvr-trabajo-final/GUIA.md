@@ -1,7 +1,7 @@
 # Guía paso a paso del trabajo final de CNVR 2026-27
 
 **Despliegue automático de una aplicación escalable sobre Kubernetes con Terraform**
-Martín Luna Guado y Brayan Guarachi Apaza
+Martín Luna Aguado y Brayan Guarachi Apaza
 
 ---
 
@@ -40,12 +40,17 @@ He dejado todo **parametrizado** en `shared/terraform.tfvars` y `scripts/config.
 | 1 | Vuestro número de grupo | — | `grupo` / `GRUPO` |
 | 2 | Nombre de las imágenes web y admin "que se proporcionarán" | Moodle / profesor | `imagen_web`, `imagen_admin` |
 | 3 | Directorio desde el que Nginx sirve en la imagen web | `kubectl run t --image=<imagen_web> --rm -it -- cat /etc/nginx/conf.d/default.conf` (buscar `root`) | `web_root` |
-| 4 | Interfaz de los workers conectada a **VlanNet** | `ssh root@k8s-worker1 ip -br a` (será la que no tiene IP de k8s_LAN ni de virbr0) | `vlan_parent_if` / `VLAN_PARENT_IF` |
+| 4 | Interfaz de los workers conectada a **VlanNet** | `ssh root@10.10.10.11 ip -br a` (será la que no tiene IP de k8s_LAN ni de virbr0) | `vlan_parent_if` / `VLAN_PARENT_IF` |
 | 5 | VLAN ID que usa el escenario `k8s_lab-vms-vlan.xml` de la P1.3 | abrir ese XML y buscar `<tag id=...>` | `vlan_id` / `VLAN_ID` |
 | 6 | ¿Está instalado Multus? ¿Y Whereabouts? | `kubectl get pods -A \| grep -E 'multus\|whereabouts'` | (el script 02 instala Whereabouts si falta) |
 | 7 | Etiquetas de los Pods del Ingress Controller | `kubectl get pods -n ingress-nginx --show-labels` | `ingress_controller_labels` |
 | 8 | Cómo se expone el Ingress Controller (NodePort o LoadBalancer) | `kubectl get svc -n ingress-nginx` | (lo detecta `05-pruebas.sh`) |
 | 9 | Ruta del filesystem LXC y sintaxis de VLAN en VNX | copiar de `k8s_lab-vms-vlan.xml` | `vnx/cnvr-lxc-vlan.xml` |
+| 10 | ¿El host entra por SSH a los nodos como root? | `ssh root@10.10.10.11 hostname` (si pide contraseña, en VNX suele ser `xxxx`) | IPs en `scripts/config.sh` |
+
+> **Estado del proyecto.** Los `.tf` se han revisado a mano, pero **todavía no se ha ejecutado `terraform validate` real** (no se pudo instalar Terraform fuera del laboratorio). Por eso el primer comando en la VM terraform es `terraform init && terraform validate`. Si da algún error, copiadlo tal cual y se corrige.
+
+> **Los scripts usan IPs, no nombres** (`10.10.10.10` master, `.11` worker1, `.12` worker2, `.13` terraform), porque el host no tiene por qué resolver `k8s-worker1` o `terraform`.
 
 > **Errata en el enunciado (apartado 2, punto 5).** El texto dice que a los servidores web se les da la clave *privada* y al admin la *pública*. Es al revés. Quien inicia la conexión SSH (el **admin**) necesita la **privada**, y los equipos a los que se conecta (**web**, BBDD, logs) necesitan la **pública** en `authorized_keys`. Lo he implementado así y conviene explicarlo en la memoria. Si queréis, confirmadlo con el profesor.
 
@@ -120,8 +125,11 @@ cnvr-trabajo-final/
 
 ## 3. Paso 1: preparar el proyecto y generar las claves (host)
 
+El proyecto vive en GitHub (`MartinLunaAguado/CNVR-Practica-1`). En el PC del laboratorio, clonadlo en vuestra carpeta personal (no en `/mnt/tmp`, que se borra):
+
 ```bash
-cd ~ && unzip cnvr-trabajo-final.zip && cd cnvr-trabajo-final
+cd ~ && git clone https://github.com/MartinLunaAguado/CNVR-Practica-1.git
+cd CNVR-Practica-1/cnvr-trabajo-final
 chmod +x scripts/*.sh
 nano shared/terraform.tfvars     # grupo, imágenes, interfaz VLAN... (tabla 0.3)
 nano scripts/config.sh           # mismos valores
@@ -150,11 +158,13 @@ Hace exactamente lo del apartado 3 de la P1.4:
 3. `get-master-kubeconf` y `set-terraform-kubeconf`: deja `~/.kube/config` en el host y en la VM terraform.
 4. Copia `shared/` a `/mnt/tmp/k8s_lab-calico-v02/shared`.
 
+> **Ojo con los restos de la P1.4.** Terraform carga *todos* los `.tf` de `/shared`. Si en esa carpeta siguen los ficheros de la P1.4 (por ejemplo, `network-policy-deny-all.tf`, que también define `default_deny_all`) o su `terraform.tfstate`, habrá recursos duplicados o Terraform intentará borrar cosas. El script 01 lo detecta y se para: moved esos ficheros a otra carpeta (si siguen desplegados, haced antes `terraform destroy` en la P1.4) y relanzadlo.
+
 **Comprobad:**
 ```bash
 kubectl get nodes                  # 3 nodos Ready
 kubectl get pods -n ingress-nginx  # controlador Ingress Running
-ssh root@terraform terraform --version
+ssh root@10.10.10.13 terraform --version
 ```
 
 Ahora rellenad los datos 4, 6, 7 y 8 de la tabla 0.3. Si cambiáis algo en `shared/`, volved a copiarlo con `cp -r shared/. /mnt/tmp/k8s_lab-calico-v02/shared/`.
@@ -176,7 +186,7 @@ Es lo mismo que hicisteis a mano en la P1.3. Además comprueba que existe la CRD
 
 **Comprobad:**
 ```bash
-ssh root@k8s-worker1 ip -d link show eth2.100   # "vlan protocol 802.1Q id 100"
+ssh root@10.10.10.11 ip -d link show eth2.100   # "vlan protocol 802.1Q id 100"
 kubectl get crd | grep -E 'network-attachment|whereabouts'
 ```
 
@@ -215,7 +225,7 @@ sudo lxc-attach -n bbdd -- ip a                     # 10.1.100.21 en eth1
 Podéis lanzarlo todo de golpe con `04-terraform-deploy.sh`. **Para aprender y para la memoria, os recomiendo ir por partes con `-target`**, como en la P1.4. Así veis el efecto de cada recurso, sobre todo el antes y el después de las NetworkPolicy.
 
 ```bash
-ssh root@terraform
+ssh root@10.10.10.13          # VM terraform
 cd /shared
 terraform init
 terraform validate
@@ -300,8 +310,8 @@ ssh -i shared/keys/host_key -p 30022 root@10.10.10.11   # desde el host
 
 **Antes** de aplicarlas, haced estas pruebas y guardad captura de que *funcionan*:
 ```bash
-ssh root@k8s-master curl -s -m5 http://<IP_eth0_pod_web>      # responde
-ssh root@k8s-master "timeout 5 bash -c '</dev/tcp/10.10.10.11/30022' && echo ABIERTO"
+ssh root@10.10.10.10 curl -s -m5 http://<IP_eth0_pod_web>      # desde k8s-master: responde
+ssh root@10.10.10.10 "timeout 5 bash -c '</dev/tcp/10.10.10.11/30022' && echo ABIERTO"
 ```
 
 Aplicad las políticas:
@@ -391,7 +401,9 @@ terraform state list
 | Pruebas cruzadas (cada uno prueba lo del otro) | ✔ | ✔ |
 | Memoria: cada uno escribe sus bloques; el otro revisa | ✔ | ✔ |
 
-Usad un repositorio git privado compartido (el `.gitignore` ya excluye las claves y el estado de Terraform).
+Usad el repositorio de GitHub como punto común. Martín tiene que añadir a Brayan como colaborador (Settings → Collaborators) y conviene que el repositorio sea **privado**, porque es un trabajo evaluable. El `.gitignore` de la raíz ya excluye las claves privadas, el `authorized_keys` generado y el estado de Terraform. **Las claves se generan en cada PC** con el script 00 y nunca se suben.
+
+Flujo cómodo: editáis en VS Code (en casa o en el laboratorio), hacéis `git push`, y en el laboratorio `git pull` + `cp -r shared/. /mnt/tmp/k8s_lab-calico-v02/shared/`.
 
 ---
 
@@ -421,7 +433,7 @@ Usad un repositorio git privado compartido (el `.gitignore` ya excluye las clave
 ./scripts/02-vlan-workers.sh
 ./scripts/03-arranque-lxc.sh
 # VM TERRAFORM
-ssh root@terraform 'bash /shared/scripts/04-terraform-deploy.sh'
+ssh root@10.10.10.13 'bash /shared/scripts/04-terraform-deploy.sh'
 # HOST
 ./scripts/05-pruebas.sh
 # AL TERMINAR

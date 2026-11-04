@@ -12,7 +12,7 @@ echo "== Copia de seguridad de $SHARED en ~/cnvr-backup-$(date +%F-%H%M)"
 cp -r "$SHARED" ~/cnvr-backup-$(date +%F-%H%M) 2>/dev/null || true
 
 echo "== terraform destroy (en la máquina terraform)"
-ssh root@terraform "cd /shared && terraform destroy -auto-approve"
+ssh root@$TERRAFORM_IP "cd /shared && terraform destroy -auto-approve"
 
 echo "== Destruyendo escenario LXC"
 cd "$REPO/vnx" && sudo vnx -f cnvr-lxc-vlan.xml --destroy
