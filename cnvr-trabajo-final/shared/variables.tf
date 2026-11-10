@@ -1,15 +1,15 @@
 # =============================================================================
 # variables.tf
 # -----------------------------------------------------------------------------
-# Todas las variables de entrada del despliegue. Los valores concretos se dan
-# en terraform.tfvars (Terraform lo carga automáticamente).
-# Tener todo parametrizado aquí permite adaptar el trabajo al laboratorio
-# (nombres de interfaces, imágenes, número de grupo...) sin tocar el resto.
+# Variables de entrada. Los valores del grupo están en terraform.tfvars, que
+# Terraform carga automáticamente. Todo lo que puede cambiar en el laboratorio
+# (interfaz de la VLAN, etiquetas del Ingress Controller...) es una variable,
+# así no hay que tocar el resto de ficheros.
 # =============================================================================
 
 # ---------------------------------------------------------------- Generales --
 variable "grupo" {
-  description = "Número del grupo de prácticas (se usa en la ruta /servers-GX)"
+  description = "Número del grupo de prácticas (ruta /servers-GX del Ingress)"
   type        = number
 }
 
@@ -27,32 +27,58 @@ variable "num_replicas" {
 }
 
 variable "imagen_web" {
-  description = "Imagen de contenedor proporcionada para los servidores web (Nginx + SSH)"
+  description = "Imagen proporcionada para los servidores web (Nginx + SSH)"
   type        = string
+  default     = "dgsgiros/nginx-ssh:latest"
+}
+
+variable "usuario_web" {
+  description = "Usuario de la imagen web con el que se entra por SSH"
+  type        = string
+  default     = "webuser"
 }
 
 variable "web_root" {
-  description = "Directorio desde el que Nginx sirve los ficheros dentro de la imagen web"
+  description = "Directorio desde el que Nginx sirve los ficheros en la imagen web (lo muestra scripts/02-inspeccionar-imagenes.sh)"
   type        = string
   default     = "/usr/share/nginx/html"
 }
 
 variable "imagen_init" {
-  description = "Imagen ligera usada por los initContainers (necesita sh, sed, cp, chmod)"
+  description = "Imagen ligera del initContainer que genera la página (necesita sh y sed)"
   type        = string
   default     = "busybox:1.36"
 }
 
 # ------------------------------------------------- Servidor administración ---
 variable "imagen_admin" {
-  description = "Imagen de contenedor proporcionada para el servidor de administración (con SSH)"
+  description = "Imagen proporcionada para el servidor de administración (con SSH)"
   type        = string
+  default     = "dgsgiros/admin-ssh:latest"
+}
+
+variable "usuario_admin" {
+  description = "Usuario de la imagen admin con el que se entra por SSH"
+  type        = string
+  default     = "adminuser"
+}
+
+variable "ssh_gid" {
+  description = "GID de adminuser y webuser (el enunciado indica 1000). Se usa como fsGroup"
+  type        = number
+  default     = 1000
 }
 
 variable "admin_node" {
-  description = "Nodo en el que se fuerza el Pod admin (nodeSelector). Debe coincidir con la IP a la que se hace SSH"
+  description = "Nodo en el que se fuerza el Pod admin (nodeSelector)"
   type        = string
   default     = "k8s-worker1"
+}
+
+variable "admin_node_ip" {
+  description = "IP de ese nodo en k8s_LAN; a ella se dirige el SSH desde el host"
+  type        = string
+  default     = "10.10.10.11"
 }
 
 variable "admin_node_port" {
@@ -81,7 +107,7 @@ variable "ingress_controller_namespace" {
 }
 
 variable "ingress_controller_labels" {
-  description = "Etiquetas de los Pods del Ingress Controller (consultar con: kubectl get pods -n ingress-nginx --show-labels)"
+  description = "Etiquetas de los Pods del Ingress Controller (kubectl get pods -n ingress-nginx --show-labels)"
   type        = map(string)
   default = {
     "app.kubernetes.io/name"      = "ingress-nginx"
@@ -91,7 +117,7 @@ variable "ingress_controller_labels" {
 
 # --------------------------------------------------------------- VLAN --------
 variable "vlan_parent_if" {
-  description = "Interfaz de los nodos worker conectada a la red VlanNet (comprobar con 'ip a' en los workers)"
+  description = "Interfaz de los nodos worker conectada a la red VlanNet"
   type        = string
   default     = "eth2"
 }
@@ -126,21 +152,42 @@ variable "vlan_admin_ip" {
   default     = "10.1.100.10/24"
 }
 
+variable "bbdd_ip" {
+  description = "IP del contenedor LXC de base de datos en la VLAN (la fija el XML de VNX)"
+  type        = string
+  default     = "10.1.100.21"
+}
+
+variable "logs_ip" {
+  description = "IP del contenedor LXC de logs en la VLAN (la fija el XML de VNX)"
+  type        = string
+  default     = "10.1.100.22"
+}
+
 # -------------------------------------------------------------- Claves SSH ---
-variable "ssh_admin_private_key" {
-  description = "Clave privada que usará el admin para entrar en web/BBDD/logs"
+# Par I  (administración -> servidores web y LXC)
+variable "clave_admin_web_privada" {
+  description = "Par I, clave PRIVADA: se entrega al Pod admin"
   type        = string
-  default     = "keys/admin_key"
+  default     = "keys/admin_web_rsa"
 }
 
-variable "ssh_admin_public_key" {
-  description = "Clave pública del admin (se autoriza en servidores web y contenedores LXC)"
+variable "clave_admin_web_publica" {
+  description = "Par I, clave PÚBLICA: se autoriza en los servidores web (y en los LXC)"
   type        = string
-  default     = "keys/admin_key.pub"
+  default     = "keys/admin_web_rsa.pub"
 }
 
-variable "ssh_host_public_key" {
-  description = "Clave pública del host (se autoriza en el Pod admin)"
+# Par II (exterior -> administración). La privada NO sale del host.
+variable "clave_host_admin_publica" {
+  description = "Par II, clave PÚBLICA: se autoriza en el Pod admin"
   type        = string
-  default     = "keys/host_key.pub"
+  default     = "keys/host_admin_rsa.pub"
+}
+
+# ---------------------------------------------------- Mantenimiento ----------
+variable "permitir_salida_temporal" {
+  description = "true = crea una NetworkPolicy temporal que permite la salida (Egress) de los Pods, p.ej. para instalar paquetes con apt. Dejar en false"
+  type        = bool
+  default     = false
 }

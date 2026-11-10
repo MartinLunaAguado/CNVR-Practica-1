@@ -1,9 +1,9 @@
 #!/bin/bash
 # =============================================================================
-# 01-arranque-escenario.sh  (ejecutar en el HOST del laboratorio)
+# 01-arranque-escenario.sh  (HOST)
 # -----------------------------------------------------------------------------
-# Arranca el escenario de Kubernetes con Calico + nodo terraform (P1.4, ap. 3)
-# y copia los ficheros Terraform a la carpeta compartida /shared.
+# Arranca el escenario de Kubernetes con Calico y el nodo terraform (apartado 3
+# de la práctica 1.4) y copia el proyecto a la carpeta compartida /shared.
 # =============================================================================
 set -e
 source "$(dirname "$0")/config.sh"
@@ -22,21 +22,9 @@ echo "== 3. Credenciales del clúster para el host y para el nodo terraform"
 ./bin/set-terraform-kubeconf
 
 echo "== 4. Copiando el proyecto Terraform a $SHARED"
-mkdir -p "$SHARED"
-# Terraform carga TODOS los .tf de /shared: si quedan los de la P1.4 (que tiene
-# también un "default_deny_all") o su terraform.tfstate, habría conflictos.
-AJENOS=$(cd "$SHARED" && ls *.tf 2>/dev/null | while read -r f; do
-           [ -f "$REPO/shared/$f" ] || echo "$f"; done)
-if grep -qE '"name": "(web_servers|tester|tester_egress|nginx_ingress)"' "$SHARED/terraform.tfstate" 2>/dev/null; then
-  AJENOS="$AJENOS terraform.tfstate (con recursos de la P1.4)"
-fi
-if [ -n "$AJENOS" ]; then
-  echo "!! En $SHARED hay ficheros que no son de este proyecto (¿restos de la P1.4?):"
-  echo "$AJENOS" | sed 's/^/     /'
-  echo "!! Movedlos a otra carpeta (y haced antes 'terraform destroy' si siguen desplegados) y relanzad."
-  exit 1
-fi
-cp -r "$REPO/shared/." "$SHARED/"
-mkdir -p "$SHARED/scripts" && cp "$REPO/scripts/04-terraform-deploy.sh" "$SHARED/scripts/"
+sync_shared
 
-echo "== Hecho. Comprobad:  kubectl get nodes   (los 3 nodos en Ready)"
+echo "== Hecho. Comprobad:"
+echo "   kubectl get nodes                      (3 nodos en Ready)"
+echo "   kubectl get pods -n ingress-nginx      (controlador en Running)"
+echo "   ssh root@$NODO_TERRAFORM terraform --version"

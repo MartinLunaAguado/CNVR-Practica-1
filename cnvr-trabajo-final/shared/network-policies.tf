@@ -1,19 +1,19 @@
 # =============================================================================
 # network-policies.tf  (Apartado 5 del enunciado)
 # -----------------------------------------------------------------------------
-# Recordatorios (P1.4, apartado 3.3):
+# Recordatorios (práctica 1.4, apartado 3.3):
 #   * Las NetworkPolicy son ADITIVAS: lo permitido es la unión de todas las
 #     políticas que seleccionan a un Pod.
 #   * Son STATEFUL: si se permite el inicio de una conexión, sus respuestas
 #     vuelven sin necesitar otra regla.
-#   * Calico las aplica sobre la interfaz principal del Pod (eth0). La interfaz
-#     Multus de la VLAN (net1) NO pasa por Calico, por eso el tráfico admin ->
-#     web / BBDD / logs por la VLAN no se ve afectado por estas políticas.
+#   * Calico las aplica en la interfaz principal del Pod (eth0). La interfaz
+#     de Multus en la VLAN (net1) NO pasa por Calico: el tráfico admin -> web /
+#     BBDD / logs por la VLAN no se ve afectado por estas políticas.
 #   * El puerto que se indica es el del POD (80, 22), no el del Service.
 # =============================================================================
 
-# 1) Denegación por defecto: todo el tráfico de entrada y salida de todos los
-#    Pods del namespace queda bloqueado (no hay reglas ingress/egress).
+# 1) Denegación por defecto: sin reglas ingress/egress, todo el tráfico de
+#    entrada y de salida de todos los Pods del namespace queda bloqueado.
 resource "kubernetes_network_policy_v1" "default_deny_all" {
   metadata {
     name      = "default-deny-all"
@@ -27,8 +27,8 @@ resource "kubernetes_network_policy_v1" "default_deny_all" {
 
 # 2) Servidores web: solo admiten conexiones al puerto 80 desde los Pods del
 #    Ingress Controller del namespace ingress-nginx.
-#    namespace_selector y pod_selector dentro del MISMO bloque "from" = AND
-#    (Pods con esas etiquetas Y en ese namespace).
+#    namespace_selector y pod_selector en el MISMO bloque "from" = Y lógico
+#    (Pods con esas etiquetas Y que están en ese namespace).
 resource "kubernetes_network_policy_v1" "web_desde_ingress" {
   metadata {
     name      = "web-allow-from-ingress-nginx"
@@ -82,5 +82,26 @@ resource "kubernetes_network_policy_v1" "admin_ssh_desde_host" {
         port     = "22"
       }
     }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# OPCIONAL (mantenimiento): política temporal que permite la SALIDA de los
+# Pods. Solo existe si se aplica con -var="permitir_salida_temporal=true";
+# sirve para instalar paquetes con apt (p.ej. el cliente de MariaDB) y se
+# elimina volviendo a aplicar sin la variable. Demuestra que las políticas son
+# aditivas: no se toca default-deny-all, se añade un permiso.
+# -----------------------------------------------------------------------------
+resource "kubernetes_network_policy_v1" "salida_temporal" {
+  count = var.permitir_salida_temporal ? 1 : 0
+
+  metadata {
+    name      = "temporal-allow-egress"
+    namespace = var.namespace
+  }
+  spec {
+    pod_selector {}
+    policy_types = ["Egress"]
+    egress {} # una regla vacía = permitir toda la salida
   }
 }

@@ -1,1 +1,1 @@
-# Aquí se copia keys/admin_key.pub (lo hace scripts/00-generar-claves.sh)
+# Aquí se copia keys/admin_key.pub (admin_web_rsa.pub, Par I; lo hace scripts/00-generar-claves.sh)

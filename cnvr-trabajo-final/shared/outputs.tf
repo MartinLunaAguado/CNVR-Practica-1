@@ -4,7 +4,7 @@
 # Información útil tras el "terraform apply" (consultable con "terraform output").
 # =============================================================================
 
-# Lista de Pods web (consultada después de crear el Deployment)
+# Lista de Pods web (se consulta después de crear el Deployment)
 data "kubernetes_resources" "web_pods" {
   api_version    = "v1"
   kind           = "Pod"
@@ -23,7 +23,7 @@ output "web_pod_names" {
   value       = [for p in data.kubernetes_resources.web_pods.objects : p.metadata.name]
 }
 
-# IP de cada Pod web en la VLAN, extraída de la anotación que escribe Multus.
+# IP de cada Pod web en la VLAN, leída de la anotación que escribe Multus.
 # Si sale "pendiente", ejecutad: terraform apply -refresh-only
 output "web_pods_ip_vlan" {
   description = "IP de la interfaz VLAN (net1) de cada Pod web"
@@ -43,6 +43,11 @@ output "admin_ip_vlan" {
 }
 
 output "ssh_admin" {
-  description = "Comando para entrar al admin desde el host"
-  value       = "ssh -i keys/host_key -p ${var.admin_node_port} root@<IP_${var.admin_node}>"
+  description = "Comando para entrar al admin desde el host (clave privada del Par II)"
+  value       = "ssh -i shared/keys/host_admin_rsa -p ${var.admin_node_port} ${var.usuario_admin}@${var.admin_node_ip}"
+}
+
+output "ssh_desde_admin" {
+  description = "Comandos de ejemplo dentro del admin"
+  value       = "ssh ${var.usuario_web}@<IP_VLAN_web>   |   ssh bbdd   |   ssh logs"
 }

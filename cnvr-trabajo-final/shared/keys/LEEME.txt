@@ -1,1 +1,3 @@
-Aquí se generan las claves con scripts/00-generar-claves.sh (NO subirlas a git)
+Aquí genera las claves scripts/00-generar-claves.sh (NO subirlas a git):
+  admin_web_rsa, admin_web_rsa.pub    Par I  (administración -> servidores web y LXC)
+  host_admin_rsa, host_admin_rsa.pub  Par II (host -> administración)

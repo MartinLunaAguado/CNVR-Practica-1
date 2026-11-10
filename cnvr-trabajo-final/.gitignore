@@ -1,0 +1,7 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+shared/keys/*_rsa
+shared/keys/*.pub
+vnx/conf/ssh/authorized_keys

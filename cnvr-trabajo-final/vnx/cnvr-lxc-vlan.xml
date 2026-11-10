@@ -16,8 +16,11 @@
   allí, si difieren: la ruta del filesystem LXC, la definición de la red
   VlanNet y la sintaxis exacta del bloque <vlan>.
 
-  Uso: ver scripts/03-arranque-lxc.sh (crear el escenario y lanzar la
+  Uso: ver scripts/04-arranque-lxc.sh (crear el escenario y lanzar la
   secuencia "configurar") y scripts/99-borrar.sh (destruirlo).
+
+  SSH: en /root/.ssh/authorized_keys se copia la clave PUBLICA del Par I
+  (la misma que en los servidores web), de modo que el admin entra como root.
   ============================================================================
 -->
 <vnx xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
