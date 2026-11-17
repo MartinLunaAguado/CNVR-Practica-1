@@ -592,6 +592,9 @@ tf destroy
 kubectl get all,networkpolicy,net-attach-def      # -> solo queda service/kubernetes
 ```
 
+> Si `tf destroy` termina con `Error: Pod admin still exists (Running)`, esperad un rato
+> hasta que `kubectl get pod admin` diga `NotFound` y repetid `tf destroy`.
+
 📸 El `Destroy complete!` y el clúster vacío.
 
 Volved a desplegarlo todo sin tocar nada:
@@ -641,6 +644,7 @@ Si queréis dejarlo todo limpio (hace copia, `terraform destroy` y borra los LXC
 | Queréis la captura del "antes" de las NetworkPolicy | Solo se puede antes de aplicarlas: despliegue por partes (Paso 8.6) |
 | Abrís una terminal nueva | Volved a definir `tf() { ... }` y, si la usáis, `NP=...` |
 | Se ha reiniciado un worker | `./scripts/03-vlan-workers.sh` |
+| `tf destroy` da `Pod admin still exists` | Esperad un rato, comprobad con `kubectl get pod admin` que ya no está y repetid `tf destroy`. Si no desaparece: `kubectl delete pod admin --grace-period=0 --force` |
 
 **Atajo:** si un día solo queréis tenerlo todo desplegado, después del Paso 2 basta con
 `./scripts/desplegar-todo.sh` (y luego `07-cliente-bd.sh` y `06-pruebas.sh`). Para la
@@ -673,3 +677,9 @@ memoria es mejor ir paso a paso por las capturas del antes y el después.
 9. **Terraform lanzado fuera de `/shared`**: al pegar los comandos en bloque tras
    `ssh root@terraform`, se ejecutaban en `/root` (`No configuration files`). Se resolvió
    lanzándolos de uno en uno o con `ssh root@terraform "cd /shared && terraform ..."`.
+10. **`terraform destroy` falla con `Error: Pod admin still exists (Running)`** (prueba P13).
+    Terraform pide borrar el Pod admin y deja de esperar antes de que Kubernetes termine de
+    eliminarlo. Se resolvió solo: tras esperar un rato el Pod desapareció y, al repetir
+    `terraform destroy`, se borró el resto de recursos (`Destroy complete!`), porque
+    Terraform solo elimina lo que queda. Si no desaparece, se puede forzar con
+    `kubectl delete pod admin --grace-period=0 --force`.
