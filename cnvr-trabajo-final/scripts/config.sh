@@ -29,8 +29,8 @@ USUARIO_ADMIN=adminuser
 ADMIN_NODEPORT=30022
 
 # VLAN
-VLAN_PARENT_IF=eth2      # <-- interfaz de los workers conectada a VlanNet
-VLAN_ID=100              # <-- la misma que en vnx/cnvr-lxc-vlan.xml
+VLAN_PARENT_IF=e2        # interfaz de los workers en VlanNet (comprobado en el lab)
+VLAN_ID=1000             # la de k8s_lab-vms-vlan.xml (comprobado en el lab)
 
 # IPs en la VLAN
 ADMIN_VLAN_IP=10.1.100.10

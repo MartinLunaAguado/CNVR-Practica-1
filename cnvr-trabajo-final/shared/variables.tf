@@ -119,13 +119,13 @@ variable "ingress_controller_labels" {
 variable "vlan_parent_if" {
   description = "Interfaz de los nodos worker conectada a la red VlanNet"
   type        = string
-  default     = "eth2"
+  default     = "e2"
 }
 
 variable "vlan_id" {
   description = "Identificador de la VLAN compartida con los contenedores LXC"
   type        = number
-  default     = 100
+  default     = 1000
 }
 
 variable "vlan_cidr" {

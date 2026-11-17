@@ -6,7 +6,7 @@ Martín Luna Aguado y Brayan Guarachi Apaza
 Escenario: 3 servidores web (Deployment, imagen `dgsgiros/nginx-ssh`) y 1 servidor de
 administración (imagen `dgsgiros/admin-ssh`) en un clúster Kubernetes con Calico, más
 dos contenedores LXC (MariaDB y rsyslog) desplegados con VNX. Todos comparten la
-VLAN 100 (`10.1.100.0/24`) mediante Multus.
+VLAN 1000 (`10.1.100.0/24`, subinterfaz `e2.1000` en los workers) mediante Multus.
 
 ## Estructura
 
@@ -29,6 +29,8 @@ VLAN 100 (`10.1.100.0/24`) mediante Multus.
 | `network-policies.tf` | 5 NetworkPolicy |
 
 ## Despliegue
+
+**Guía paso a paso para el laboratorio: [GUIA-LABORATORIO.md](GUIA-LABORATORIO.md).**
 
 Antes de nada, confirmar los valores marcados con `<--` en `shared/terraform.tfvars`
 y `scripts/config.sh` (los muestra `02-inspeccionar-imagenes.sh`).
@@ -56,7 +58,7 @@ Todo seguido: `./scripts/desplegar-todo.sh` (o `--sin-k8s` si el clúster ya est
 | Host → admin | `ssh -i shared/keys/host_admin_rsa -p 30022 adminuser@10.10.10.11` |
 | Admin → servidor web | `ssh <IP_VLAN_del_web>` (usuario `webuser`) |
 | Admin → LXC | `ssh bbdd`, `ssh logs` (usuario `root`) |
-| Base de datos | `mysql -h 10.1.100.21 -u cnvr -pcnvr2627 cnvr` |
+| Base de datos | `mysql --skip-ssl -h 10.1.100.21 -u cnvr -pcnvr2627 cnvr` |
 
 ## Direcciones
 

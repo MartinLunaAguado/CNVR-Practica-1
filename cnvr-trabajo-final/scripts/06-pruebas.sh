@@ -145,14 +145,14 @@ SQL="INSERT INTO accesos(origen,mensaje) VALUES (USER(), CURRENT_USER()); SELECT
 CLI='$(command -v mysql || command -v mariadb)'
 if $ADMIN "[ -n \"$CLI\" ]" 2>/dev/null; then
   debe_ir "admin: cliente SQL contra $BBDD_IP (usuario cnvr)" \
-    $ADMIN "$CLI -h $BBDD_IP -u cnvr -pcnvr2627 cnvr -e \"$SQL\""
-  $ADMIN "$CLI -t -h $BBDD_IP -u cnvr -pcnvr2627 cnvr -e 'SELECT * FROM accesos ORDER BY id DESC LIMIT 5'"
+    $ADMIN "$CLI --skip-ssl -h $BBDD_IP -u cnvr -pcnvr2627 cnvr -e \"$SQL\""
+  $ADMIN "$CLI --skip-ssl -t -h $BBDD_IP -u cnvr -pcnvr2627 cnvr -e 'SELECT * FROM accesos ORDER BY id DESC LIMIT 5'"
 else
   echo "  [info]  La imagen admin no trae cliente SQL. Para la prueba completa: ./scripts/07-cliente-bd.sh"
 fi
 if $ADMIN "ssh -o BatchMode=yes $W1_VLAN '[ -n \"$CLI\" ]'" 2>/dev/null; then
   debe_ir "$WEB1: cliente SQL contra $BBDD_IP (usuario cnvr)" \
-    $ADMIN "ssh -o BatchMode=yes $W1_VLAN '$CLI -h $BBDD_IP -u cnvr -pcnvr2627 cnvr -e \"$SQL\"'"
+    $ADMIN "ssh -o BatchMode=yes $W1_VLAN '$CLI --skip-ssl -h $BBDD_IP -u cnvr -pcnvr2627 cnvr -e \"$SQL\"'"
 else
   echo "  [info]  La imagen web no trae cliente SQL. Para la prueba completa: ./scripts/07-cliente-bd.sh"
 fi

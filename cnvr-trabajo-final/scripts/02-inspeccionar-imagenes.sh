@@ -64,4 +64,20 @@ echo
 echo "--- Nodos (etiqueta kubernetes.io/hostname para el nodeSelector):"
 kubectl get nodes -o wide -L kubernetes.io/hostname
 
+sep "Puntos de control (deben coincidir con config.sh, terraform.tfvars y el XML)"
+XML_P13="$K8S_DIR/k8s_lab-vms-vlan.xml"
+echo "--- VLAN del XML de la práctica 1.3 (esperado 1000; ahora VLAN_ID=$VLAN_ID):"
+grep 'tag id' "$XML_P13" 2>/dev/null || echo "  (no se encuentra $XML_P13)"
+echo "--- Sistema de ficheros LXC del XML (esperado ...v025-vnxlab):"
+grep filesystem "$XML_P13" 2>/dev/null | sort -u
+echo "--- ¿Existe la subinterfaz padre $VLAN_PARENT_IF en los workers?"
+for w in $WORKERS; do
+  ssh root@"$w" "ip -br link show $VLAN_PARENT_IF" >/dev/null 2>&1 \
+    && echo "  $w: $VLAN_PARENT_IF existe (OK)" || echo "  $w: NO existe $VLAN_PARENT_IF  <-- cambiad VLAN_PARENT_IF y vlan_parent_if"
+done
+echo "--- NodePort del Ingress Controller para el puerto 80 (hoy era 30097):"
+kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}' 2>/dev/null; echo
+echo "--- IP del host (esperado $HOST_IP):"
+ip -br addr | grep -E "\b${HOST_IP}/" || echo "  NO aparece $HOST_IP  <-- cambiad host_ip y HOST_IP"
+
 kubectl delete namespace $NS --wait=false >/dev/null

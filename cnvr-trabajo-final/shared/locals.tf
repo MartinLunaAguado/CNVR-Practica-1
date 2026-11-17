@@ -13,7 +13,7 @@ locals {
   # Ruta del Ingress: /servers-G9
   ruta_ingress = "/servers-G${var.grupo}"
 
-  # Subinterfaz VLAN creada en los workers (p.ej. eth2.100)
+  # Subinterfaz VLAN creada en los workers (en el lab: e2.1000)
   vlan_if = "${var.vlan_parent_if}.${var.vlan_id}"
 
   # Directorios .ssh de los usuarios de las imágenes

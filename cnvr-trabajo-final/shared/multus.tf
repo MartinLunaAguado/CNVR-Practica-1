@@ -7,7 +7,7 @@
 # cualquier objeto de Kubernetes escrito en HCL.
 #
 # Ambas NAD usan el plugin "macvlan" sobre la subinterfaz VLAN de los workers
-# (p.ej. eth2.100). Así cada Pod recibe una interfaz "net1" con MAC propia que
+# (en el lab: e2.1000). Así cada Pod recibe una interfaz "net1" con MAC propia que
 # sale directamente a la VLAN, donde también están los contenedores LXC.
 #
 #  - vlan-web   : IPAM "whereabouts" -> reparte IPs de un rango a TODO el

@@ -23,8 +23,8 @@ admin_node_ip   = "10.10.10.11"
 admin_node_port = 30022
 
 # VLAN compartida con VNX
-vlan_parent_if = "eth2" # <-- interfaz de los workers conectada a VlanNet
-vlan_id        = 100    # <-- la misma que en el XML de VNX
+vlan_parent_if = "e2"  # interfaz de los workers en VlanNet (comprobado en el lab)
+vlan_id        = 1000  # la de k8s_lab-vms-vlan.xml (comprobado en el lab)
 vlan_cidr      = "10.1.100.0/24"
 vlan_admin_ip  = "10.1.100.10/24"
 bbdd_ip        = "10.1.100.21"

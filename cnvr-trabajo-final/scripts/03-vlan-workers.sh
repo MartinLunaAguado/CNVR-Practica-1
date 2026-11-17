@@ -2,7 +2,7 @@
 # =============================================================================
 # 03-vlan-workers.sh  (HOST)  -> Apartado 2, pasos 2 y 3
 # -----------------------------------------------------------------------------
-# Crea en cada worker la subinterfaz VLAN (p.ej. eth2.100) sobre la interfaz
+# Crea en cada worker la subinterfaz VLAN (en el lab: e2.1000) sobre la interfaz
 # conectada a VlanNet. De ella cuelgan (macvlan) las interfaces net1 que Multus
 # añade a los Pods. Es el procedimiento de la práctica 1.3, automatizado.
 #

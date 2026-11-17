@@ -1,27 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ============================================================================
-  cnvr-lxc-vlan.xml  (Apartado 2, punto 6 del enunciado)
-  ============================================================================
-  Escenario VNX complementario con dos contenedores LXC conectados a la VLAN
-  compartida con los Pods de Kubernetes:
-     - bbdd : MariaDB + SSH      -> 10.1.100.21
-     - logs : rsyslog (514) + SSH -> 10.1.100.22
-
-  Se basa en la idea de "k8s_lab-vms-vlan.xml" (final de la P1.3):
-  los LXC se conectan a VlanNet (la misma red a la que están conectados los
-  workers) y se etiquetan en una VLAN concreta (tag 100).
-
-  ¡¡ANTES DE USARLO!! abrid el k8s_lab-vms-vlan.xml del laboratorio y copiad de
-  allí, si difieren: la ruta del filesystem LXC, la definición de la red
-  VlanNet y la sintaxis exacta del bloque <vlan>.
-
-  Uso: ver scripts/04-arranque-lxc.sh (crear el escenario y lanzar la
-  secuencia "configurar") y scripts/99-borrar.sh (destruirlo).
-
-  SSH: en /root/.ssh/authorized_keys se copia la clave PUBLICA del Par I
-  (la misma que en los servidores web), de modo que el admin entra como root.
-  ============================================================================
+  cnvr-lxc-vlan.xml - Trabajo final CNVR 26-27 - Grupo 9
+  LXC bbdd (MariaDB + SSH, 10.1.100.21) y logs (rsyslog + SSH, 10.1.100.22)
+  conectados a VlanNet en la VLAN 1000, la misma que e2.1000 de los workers.
+  Valores copiados del k8s_lab-vms-vlan.xml del laboratorio (practica 1.3).
 -->
 <vnx xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
      xsi:noNamespaceSchemaLocation="/usr/share/xml/vnx/vnx-2.00.xsd">
@@ -36,21 +18,17 @@
     </vm_defaults>
   </global>
 
-  <!-- Red compartida con los nodos worker (ya creada por el escenario k8s).
-       Es un switch Open vSwitch: los puertos de los LXC serán de acceso a la
-       VLAN 100 y el de los workers lleva las tramas etiquetadas (trunk). -->
-  <net name="VlanNet" mode="openvswitch"/>
-
-  <!-- Salida a Internet (solo para poder hacer apt-get install) -->
+  <!-- Red creada por el escenario k8s: VNX no debe gestionarla -->
+  <net name="VlanNet" mode="openvswitch" managed="no"/>
+  <!-- Salida a Internet, solo para apt-get -->
   <net name="virbr0" mode="virtual_bridge" managed="no"/>
 
-  <!-- ======================================================== BBDD ===== -->
+  <!-- ================================ BBDD ================================ -->
   <vm name="bbdd" type="lxc" arch="x86_64">
-    <filesystem type="cow">/usr/share/vnx/filesystems/rootfs_lxc_ubuntu64</filesystem>
-
+    <filesystem type="cow">/usr/share/vnx/filesystems/vnx_rootfs_lxc_ubuntu64-20.04-v025-vnxlab</filesystem>
     <if id="1" net="VlanNet">
       <vlan>
-        <tag id="100"/>
+        <tag id="1000"/>
       </vlan>
       <ipv4>10.1.100.21/24</ipv4>
     </if>
@@ -58,20 +36,22 @@
       <ipv4>dhcp</ipv4>
     </if>
 
-    <!-- filetree: copia ficheros del host al contenedor (a /root/conf) -->
+    <!-- filetree copia la carpeta entera: /root/conf/ssh y /root/conf/bbdd -->
     <filetree seq="configurar" root="/root/conf/">conf/ssh</filetree>
     <filetree seq="configurar" root="/root/conf/">conf/bbdd</filetree>
 
-    <!-- exec: comandos que se ejecutan dentro del contenedor, en orden -->
+    <!-- Paquetes. La imagen trae MySQL 8.0: se quita (con sus datos) antes de MariaDB -->
     <exec seq="configurar" type="verbatim" ostype="system">
-      export DEBIAN_FRONTEND=noninteractive;
+      for i in $(seq 1 30); do getent hosts archive.ubuntu.com >/dev/null &amp;&amp; break; sleep 2; done;
+      export DEBIAN_FRONTEND=noninteractive LC_ALL=C;
       apt-get update;
+      if dpkg -l mysql-server-8.0 2>/dev/null | grep -q '^ii'; then apt-get purge -y mysql-server mysql-server-8.0 mysql-server-core-8.0 mysql-client-8.0 mysql-client-core-8.0; apt-get autoremove -y; rm -rf /var/lib/mysql /etc/mysql/mysql.conf.d; fi;
       apt-get install -y mariadb-server mariadb-client openssh-server
     </exec>
-    <!-- SSH: solo con clave pública (la del admin) -->
+    <!-- SSH solo con clave pública (Par I) -->
     <exec seq="configurar" type="verbatim" ostype="system">
       mkdir -p /root/.ssh;
-      cp /root/conf/authorized_keys /root/.ssh/authorized_keys;
+      cp /root/conf/ssh/authorized_keys /root/.ssh/authorized_keys;
       chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys;
       sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config;
       sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config;
@@ -79,19 +59,18 @@
     </exec>
     <!-- MariaDB: escuchar en todas las interfaces y crear BD/usuario -->
     <exec seq="configurar" type="verbatim" ostype="system">
-      cp /root/conf/60-cnvr.cnf /etc/mysql/mariadb.conf.d/60-cnvr.cnf;
+      cp /root/conf/bbdd/60-cnvr.cnf /etc/mysql/mariadb.conf.d/60-cnvr.cnf;
       systemctl enable mariadb; systemctl restart mariadb;
-      mysql &lt; /root/conf/init.sql
+      mysql &lt; /root/conf/bbdd/init.sql
     </exec>
   </vm>
 
-  <!-- ================================================ Servidor de logs ===== -->
+  <!-- ============================ Servidor de logs ======================== -->
   <vm name="logs" type="lxc" arch="x86_64">
-    <filesystem type="cow">/usr/share/vnx/filesystems/rootfs_lxc_ubuntu64</filesystem>
-
+    <filesystem type="cow">/usr/share/vnx/filesystems/vnx_rootfs_lxc_ubuntu64-20.04-v025-vnxlab</filesystem>
     <if id="1" net="VlanNet">
       <vlan>
-        <tag id="100"/>
+        <tag id="1000"/>
       </vlan>
       <ipv4>10.1.100.22/24</ipv4>
     </if>
@@ -103,22 +82,24 @@
     <filetree seq="configurar" root="/root/conf/">conf/logs</filetree>
 
     <exec seq="configurar" type="verbatim" ostype="system">
-      export DEBIAN_FRONTEND=noninteractive;
+      for i in $(seq 1 30); do getent hosts archive.ubuntu.com >/dev/null &amp;&amp; break; sleep 2; done;
+      export DEBIAN_FRONTEND=noninteractive LC_ALL=C;
       apt-get update;
       apt-get install -y rsyslog openssh-server
     </exec>
     <exec seq="configurar" type="verbatim" ostype="system">
       mkdir -p /root/.ssh;
-      cp /root/conf/authorized_keys /root/.ssh/authorized_keys;
+      cp /root/conf/ssh/authorized_keys /root/.ssh/authorized_keys;
       chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys;
       sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config;
       sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config;
       systemctl enable ssh; systemctl restart ssh
     </exec>
-    <!-- rsyslog: recibir logs remotos por UDP/TCP 514 -->
+    <!-- rsyslog corre como 'syslog': la carpeta de destino debe ser suya -->
     <exec seq="configurar" type="verbatim" ostype="system">
-      cp /root/conf/10-remoto.conf /etc/rsyslog.d/10-remoto.conf;
+      cp /root/conf/logs/10-remoto.conf /etc/rsyslog.d/10-remoto.conf;
       mkdir -p /var/log/remoto;
+      chown syslog:adm /var/log/remoto;
       systemctl enable rsyslog; systemctl restart rsyslog
     </exec>
   </vm>
