@@ -1,0 +1,127 @@
+
+==================== P1. Recursos desplegados ====================
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                      SELECTOR
+deployment.apps/web   3/3     3            3           75s   web          dgsgiros/nginx-ssh:latest   app=web
+
+NAME                       READY   STATUS    RESTARTS   AGE   IP              NODE          NOMINATED NODE   READINESS GATES
+pod/admin                  1/1     Running   0          75s   172.16.194.73   k8s-worker1   <none>           <none>
+pod/web-85658c5498-ccnfd   1/1     Running   0          75s   172.16.194.72   k8s-worker1   <none>           <none>
+pod/web-85658c5498-j4b9z   1/1     Running   0          75s   172.16.126.10   k8s-worker2   <none>           <none>
+pod/web-85658c5498-zx7hb   1/1     Running   0          75s   172.16.126.9    k8s-worker2   <none>           <none>
+
+NAME                 TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE   SELECTOR
+service/admin-svc    NodePort    10.100.169.86    <none>        2222:30022/TCP   75s   app=admin
+service/kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP          57d   <none>
+service/web-svc      ClusterIP   10.109.110.228   <none>        8080/TCP         75s   app=web
+
+NAME                                    CLASS   HOSTS   ADDRESS       PORTS   AGE
+ingress.networking.k8s.io/web-ingress   nginx   *       10.10.10.11   80      75s
+
+NAME                                                           POD-SELECTOR   AGE
+networkpolicy.networking.k8s.io/admin-allow-ssh-from-host      app=admin      75s
+networkpolicy.networking.k8s.io/default-deny-all               <none>         75s
+networkpolicy.networking.k8s.io/web-allow-from-ingress-nginx   app=web        75s
+NAME         AGE
+vlan-admin   75s
+vlan-web     75s
+  [OK]    3 Pods web en Running
+  [OK]    Pod admin en k8s-worker1 (nodeSelector)
+  [OK]    admin-svc es NodePort con externalTrafficPolicy Local
+  [OK]    web-svc es ClusterIP 8080->80
+
+==================== P2. Interfaz adicional de Multus (net1) en la VLAN ====================
+  [OK]    web-85658c5498-ccnfd tiene net1 = 10.1.100.102
+  [OK]    web-85658c5498-j4b9z tiene net1 = 10.1.100.101
+  [OK]    web-85658c5498-zx7hb tiene net1 = 10.1.100.100
+  [OK]    admin tiene net1 = 10.1.100.10 (IP fija)
+
+==================== P3. Página personalizada y reparto de carga por el Ingress (/servers-G9) ====================
+URL: http://10.10.10.20/servers-G9
+  [OK]    El Ingress responde 200 en /servers-G9
+      4 web-85658c5498-ccnfd
+      4 web-85658c5498-j4b9z
+      4 web-85658c5498-zx7hb
+  [OK]    Responden 3 Pods distintos (cada uno muestra su nombre)
+  [OK]    Otra ruta distinta devuelve 404 (solo se publica /servers-G9)
+
+==================== P4. SSH host -> admin con clave (Par II), por worker1:30022 ====================
+  Sesión: adminuser 10.10.20.2   (usuario e IP origen que ve el Pod)
+  [OK]    Entra como adminuser sin contraseña
+  [OK]    El Pod ve la IP real del host (10.10.20.2): se conserva la IP origen
+
+==================== P5. SSH al admin desde orígenes NO autorizados (debe fallar) ====================
+  [OK]    Host -> worker2:30022 (con Local no hay Pod admin en ese nodo) (bloqueado)
+  Desde la máquina terraform (otra IP origen); puede pedir su contraseña:
+  [OK]    terraform -> worker1:30022 (bloqueado por la NetworkPolicy ipBlock)
+
+==================== P6. NetworkPolicy: accesos que deben estar bloqueados ====================
+  Pod 'tester' en otro namespace (sin políticas propias):
+  [OK]    tester -> Ingress Controller/servers-G9 (control: el tester sí tiene red)
+  [OK]    tester -> Pod web 172.16.194.72:80 directo (bloqueado)
+  [OK]    tester -> Service web-svc 10.109.110.228:8080 (bloqueado)
+  [OK]    tester -> Pod admin 172.16.194.73:22 (bloqueado)
+  Desde los propios Pods (deny-all de salida y de entrada):
+  [OK]    web-85658c5498-ccnfd -> web-85658c5498-j4b9z (172.16.126.10:80) por la red del clúster (bloqueado)
+  [OK]    web-85658c5498-ccnfd -> Internet (ping 8.8.8.8) (bloqueado)
+
+==================== P7. Conectividad por la VLAN desde el admin (ping) ====================
+  [OK]    admin -> 10.1.100.102
+  [OK]    admin -> 10.1.100.101
+  [OK]    admin -> 10.1.100.100
+  [OK]    admin -> 10.1.100.21
+  [OK]    admin -> 10.1.100.22
+  (Funciona con default-deny-all activo: net1 no pasa por Calico)
+
+==================== P8. SSH con clave (Par I) desde el admin a servidores web y LXC ====================
+  [OK]    admin -> 10.1.100.102 : webuser@web-85658c5498-ccnfd
+  [OK]    admin -> 10.1.100.101 : webuser@web-85658c5498-j4b9z
+  [OK]    admin -> 10.1.100.100 : webuser@web-85658c5498-zx7hb
+  [OK]    admin -> bbdd : root@bbdd
+  [OK]    admin -> logs : root@logs
+
+==================== P9. Base de datos: acceso desde el admin y desde un servidor web ====================
+  [OK]    admin -> 10.1.100.21:3306 abierto (nmap)
+  [OK]    web-85658c5498-ccnfd (10.1.100.102) -> 10.1.100.21:3306 abierto (nmap)
+  Administración de MariaDB desde el admin (por SSH al contenedor bbdd):
++--------------------+
+| Database           |
++--------------------+
+| cnvr               |
+| information_schema |
+| mysql              |
+| performance_schema |
++--------------------+
++------+------------+
+| user | host       |
++------+------------+
+| cnvr | 10.1.100.% |
+| root | localhost  |
++------+------------+
++----+-------------------+------------------------------------+---------------------+
+| id | origen            | mensaje                            | fecha               |
++----+-------------------+------------------------------------+---------------------+
+|  5 | bbdd              | Base de datos inicializada por VNX | 2026-11-17 17:47:28 |
+|  4 | cnvr@10.1.100.10  | prueba admin                       | 2026-11-17 17:34:20 |
+|  3 | cnvr@10.1.100.100 | cnvr@10.1.100.%                    | 2026-11-17 17:29:46 |
+|  2 | cnvr@10.1.100.10  | cnvr@10.1.100.%                    | 2026-11-17 17:29:46 |
+|  1 | bbdd              | Base de datos inicializada por VNX | 2026-11-17 16:48:13 |
++----+-------------------+------------------------------------+---------------------+
+  [OK]    admin administra MariaDB (consulta por SSH)
+  [OK]    admin: cliente SQL contra 10.1.100.21 (usuario cnvr)
++----+-------------------+------------------------------------+---------------------+
+| id | origen            | mensaje                            | fecha               |
++----+-------------------+------------------------------------+---------------------+
+|  6 | cnvr@10.1.100.10  | cnvr@10.1.100.%                    | 2026-11-17 17:50:10 |
+|  5 | bbdd              | Base de datos inicializada por VNX | 2026-11-17 17:47:28 |
+|  4 | cnvr@10.1.100.10  | prueba admin                       | 2026-11-17 17:34:20 |
+|  3 | cnvr@10.1.100.100 | cnvr@10.1.100.%                    | 2026-11-17 17:29:46 |
+|  2 | cnvr@10.1.100.10  | cnvr@10.1.100.%                    | 2026-11-17 17:29:46 |
++----+-------------------+------------------------------------+---------------------+
+  [OK]    web-85658c5498-ccnfd: cliente SQL contra 10.1.100.21 (usuario cnvr)
+
+==================== P10. Servidor de logs (rsyslog en 10.1.100.22:514) ====================
+  [OK]    El mensaje enviado desde el admin aparece en el servidor de logs
+Nov 17 17:50:11 admin adminuser prueba CNVR-G9-185011
+
+==================== RESUMEN:  37 comprobaciones correctas, 0 fallos ====================
+Todo correcto.

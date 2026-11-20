@@ -1,0 +1,114 @@
+
+==================== Imagen dgsgiros/nginx-ssh:latest (usuario esperado: webuser) ====================
+--- Usuario con el que arranca el contenedor:
+uid=0(root) gid=0(root) groups=0(root)
+--- Usuario webuser (debe tener gid=1000):
+uid=1000(webuser) gid=1000(webuser) groups=1000(webuser)
+webuser:x:1000:1000::/home/webuser:/bin/bash
+--- Home y .ssh (permisos y dueño):
+drwx------ 1 webuser webuser 4096 Nov  5 09:43 /home/webuser
+drwx------ 2 webuser webuser 4096 Nov  5 09:43 /home/webuser/.ssh
+--- sudo sin contraseña para webuser:
+SI
+--- sshd_config (líneas activas):
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+AllowUsers webuser
+--- Puertos a la escucha (deben estar el 22 y, en web, el 80):
+LISTEN 0      511          0.0.0.0:80        0.0.0.0:*   
+LISTEN 0      128          0.0.0.0:22        0.0.0.0:*   
+LISTEN 0      128             [::]:22           [::]:*   
+--- Nginx: directorio raíz (-> variable web_root):
+        root   /usr/share/nginx/html;
+--- Herramientas:
+  ping     /usr/bin/ping
+  nmap     /usr/bin/nmap
+  curl     /usr/bin/curl
+  ip       /usr/sbin/ip
+  nc       NO
+  logger   /usr/bin/logger
+  mysql    NO
+  mariadb  NO
+
+==================== Imagen dgsgiros/admin-ssh:latest (usuario esperado: adminuser) ====================
+--- Usuario con el que arranca el contenedor:
+uid=0(root) gid=0(root) groups=0(root)
+--- Usuario adminuser (debe tener gid=1000):
+uid=1000(adminuser) gid=1000(adminuser) groups=1000(adminuser)
+adminuser:x:1000:1000::/home/adminuser:/bin/bash
+--- Home y .ssh (permisos y dueño):
+drwxr-x--- 3 adminuser adminuser 4096 Nov  5 08:25 /home/adminuser
+drwx------ 2 adminuser adminuser 4096 Nov  5 08:25 /home/adminuser/.ssh
+--- sudo sin contraseña para adminuser:
+SI
+--- sshd_config (líneas activas):
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+AllowUsers adminuser
+--- Puertos a la escucha (deben estar el 22 y, en web, el 80):
+LISTEN 0      128          0.0.0.0:22        0.0.0.0:*          
+LISTEN 0      128             [::]:22           [::]:*          
+--- Nginx: directorio raíz (-> variable web_root):
+--- Herramientas:
+  ping     /usr/bin/ping
+  nmap     /usr/bin/nmap
+  curl     /usr/bin/curl
+  ip       /usr/sbin/ip
+  nc       /usr/bin/nc
+  logger   /usr/bin/logger
+  mysql    NO
+  mariadb  NO
+
+==================== Datos del clúster para terraform.tfvars y config.sh ====================
+--- Interfaces de k8s-worker1 (¿cuál está en VlanNet? -> vlan_parent_if):
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+e1               UP             10.10.10.11/24 fe80::fd:ff:fe00:101/64 
+e2               UP             fe80::fd:ff:fe00:102/64 
+e9               UP             192.168.122.182/24 fe80::fd:ff:fe00:109/64 
+e0               UP             192.168.50.22/30 fe80::fd:ff:fe00:100/64 
+tunl0@NONE       UNKNOWN        172.16.194.64/32 
+cali9c1988efc1b@if3 UP             fe80::ecee:eeff:feee:eeee/64 
+calia22c17b888c@if3 UP             fe80::ecee:eeff:feee:eeee/64 
+
+--- Multus y Whereabouts:
+kube-system      kube-multus-ds-5dzlb                        1/1     Running       0             22m
+kube-system      kube-multus-ds-qc8lq                        1/1     Running       0             22m
+kube-system      kube-multus-ds-qsnvv                        1/1     Running       1 (22m ago)   57d
+network-attachment-definitions.k8s.cni.cncf.io          Namespaced   v1(storage)                2026-09-21T13:44:08Z
+
+--- Ingress Controller: etiquetas (-> ingress_controller_labels), IP y red:
+NAME                                        READY   STATUS    RESTARTS   AGE   IP              NODE          NOMINATED NODE   READINESS GATES   LABELS
+ingress-nginx-controller-8464654b6c-pwn7w   1/1     Running   0          57d   172.16.194.68   k8s-worker1   <none>           <none>            app.kubernetes.io/component=controller,app.kubernetes.io/instance=ingress-nginx,app.kubernetes.io/name=ingress-nginx,app.kubernetes.io/part-of=ingress-nginx,app.kubernetes.io/version=1.15.1,pod-template-hash=8464654b6c
+
+--- Ingress Controller: cómo se publica (NodePort / LoadBalancer):
+NAME                                 TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+ingress-nginx-controller             LoadBalancer   10.98.225.191   10.10.10.20   80:30097/TCP,443:30753/TCP   57d
+ingress-nginx-controller-admission   ClusterIP      10.108.160.37   <none>        443/TCP                      57d
+NAME    CONTROLLER             PARAMETERS   AGE
+nginx   k8s.io/ingress-nginx   <none>       57d
+
+--- Nodos (etiqueta kubernetes.io/hostname para el nodeSelector):
+NAME          STATUS   ROLES           AGE   VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION              CONTAINER-RUNTIME    HOSTNAME
+k8s-master    Ready    control-plane   57d   v1.37.0   10.10.10.10   <none>        Ubuntu 24.04.5 LTS   6.8.0-139-generic (amd64)   containerd://2.3.5   k8s-master
+k8s-worker1   Ready    <none>          22m   v1.37.0   10.10.10.11   <none>        Ubuntu 24.04.5 LTS   6.8.0-139-generic (amd64)   containerd://2.3.5   k8s-worker1
+k8s-worker2   Ready    <none>          22m   v1.37.0   10.10.10.12   <none>        Ubuntu 24.04.5 LTS   6.8.0-139-generic (amd64)   containerd://2.3.5   k8s-worker2
+
+==================== Puntos de control (deben coincidir con config.sh, terraform.tfvars y el XML) ====================
+--- VLAN del XML de la práctica 1.3 (esperado 1000; ahora VLAN_ID=1000):
+          <tag id='1000'/>
+          <tag id='1001'/>
+          <tag id='1000'/>
+          <tag id='1001'/>
+--- Sistema de ficheros LXC del XML (esperado ...v025-vnxlab):
+    <filesystem type="cow">/usr/share/vnx/filesystems/vnx_rootfs_lxc_ubuntu64-20.04-v025-vnxlab</filesystem>
+--- ¿Existe la subinterfaz padre e2 en los workers?
+  k8s-worker1: e2 existe (OK)
+  k8s-worker2: e2 existe (OK)
+--- NodePort del Ingress Controller para el puerto 80 (hoy era 30097):
+30097
+--- IP del host (esperado 10.10.20.2):
+user_LAN         UP             10.10.20.2/24 fe80::60d1:7ff:fe5c:76fa/64 
