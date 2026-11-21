@@ -75,7 +75,10 @@ for w in $WORKERS; do
   ssh root@"$w" "ip -br link show $VLAN_PARENT_IF" >/dev/null 2>&1 \
     && echo "  $w: $VLAN_PARENT_IF existe (OK)" || echo "  $w: NO existe $VLAN_PARENT_IF  <-- cambiad VLAN_PARENT_IF y vlan_parent_if"
 done
-echo "--- NodePort del Ingress Controller para el puerto 80 (hoy era 30097):"
+echo "--- EXTERNAL-IP del Ingress Controller (MetalLB; esperado 10.10.10.20-30):"
+EXTIP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+[ -n "$EXTIP" ] && echo "  $EXTIP (OK)" || echo "  SIN EXTERNAL-IP  <-- MetalLB no funciona: sudo vnx -f k8s_lab-calico.xml -x config_metallb (en $K8S_DIR)"
+echo "--- NodePort del Ingress Controller para el puerto 80 (alternativa si no hay EXTERNAL-IP):"
 kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}' 2>/dev/null; echo
 echo "--- IP del host (esperado $HOST_IP):"
 ip -br addr | grep -E "\b${HOST_IP}/" || echo "  NO aparece $HOST_IP  <-- cambiad host_ip y HOST_IP"

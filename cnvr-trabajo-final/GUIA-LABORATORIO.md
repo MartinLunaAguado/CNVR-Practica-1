@@ -22,7 +22,7 @@ Cómo leerla:
 |---|---|---|
 | 1 | Traer el proyecto y comprobar que tiene las correcciones | Los 4 `grep` con los valores indicados |
 | 2 | `00-generar-claves.sh` | 4 ficheros en `shared/keys/` |
-| 3 | `01-arranque-escenario.sh` + acceso sin contraseña | 3 nodos `Ready` |
+| 3 | `01-arranque-escenario.sh` + MetalLB + acceso sin contraseña | 3 nodos `Ready` y el Ingress con EXTERNAL-IP |
 | 4 | `02-inspeccionar-imagenes.sh` | Los 6 puntos de control |
 | 5 | Copiar `shared/` a la carpeta compartida | — |
 | 6 | `03-vlan-workers.sh` | `e2.1000` en los 2 workers y Whereabouts `Running` |
@@ -112,6 +112,40 @@ ssh root@terraform ls /shared              # -> los .tf, html/ y keys/
 
 📸 `kubectl get nodes`
 
+### 3.0 MetalLB y EXTERNAL-IP del Ingress (aviso del profesor del 20/11)
+
+El Service del Ingress Controller es de tipo **LoadBalancer** y necesita MetalLB para tener
+una EXTERNAL-IP. El script 01 ya lo comprueba y lanza `config_metallb` si hace falta, pero
+verificadlo:
+
+```bash
+kubectl get l2advertisements.metallb.io -n metallb-system   # -> default-l2-advertisement  ["default-pool"]
+kubectl get ipaddresspools.metallb.io -n metallb-system     # -> default-pool  true  false  ["10.10.10.20-10.10.10.30"]
+kubectl get service -n ingress-nginx                        # -> ingress-nginx-controller con EXTERNAL-IP 10.10.10.2x
+```
+
+Si alguno de los dos primeros no devuelve nada, o la EXTERNAL-IP sale `<pending>`:
+
+```bash
+cd /mnt/tmp/k8s_lab-calico-v02
+sudo vnx -f k8s_lab-calico.xml -x config_metallb
+cd -
+```
+
+y repetid los tres comandos. 📸 Las tres salidas con la EXTERNAL-IP.
+
+**Si `terraform --version` dice `command not found`** (otro problema de red del lab que
+avisaron los profesores):
+
+```bash
+cd /mnt/tmp/k8s_lab-calico-v02
+sudo vnx -f k8s_lab-terraform.xml -x install-terraform
+cd -
+ssh root@terraform terraform --version
+```
+
+Si sigue fallando, mandad un correo a los profesores: es un problema del laboratorio.
+
 ### 3.1 Acceso sin contraseña a los nodos (muy recomendado)
 
 Los scripts entran por SSH como `root` muchas veces. Sin esto os pedirá la contraseña
@@ -154,7 +188,7 @@ Al final de la salida hay un bloque **"Puntos de control"**. Comprobad esta tabl
 | Interfaz padre de la VLAN en los workers | `e2 existe (OK)` en los dos | Ver **4.1** |
 | `tag id` del XML de la práctica 1.3 | `1000` | Ver **4.2** |
 | `filesystem` de ese mismo XML | `...ubuntu64-20.04-v025-vnxlab` | Ver **4.3** |
-| NodePort del Ingress Controller | `30097` (puede cambiar) | Nada: `06-pruebas.sh` lo detecta solo. Usad el nuevo en los `curl` a mano |
+| EXTERNAL-IP del Ingress Controller | `10.10.10.2x (OK)` | MetalLB no funciona: repetid el **3.0**. Mientras tanto se puede usar el NodePort que sale debajo |
 | IP del Pod del Ingress Controller (bloque "Ingress Controller: etiquetas, IP y red") | Una IP de Pod, **distinta** de la del nodo | Ver apartado de problemas de la guía PDF |
 | IP del host | `10.10.20.2` | Ver **4.4** |
 
@@ -395,18 +429,28 @@ kubectl get endpoints web-svc                     # -> 3 IP, puerto 80
 kubectl describe ingress web-ingress              # -> /servers-G9 -> web-svc:8080
 ```
 
-Probad desde el host. El puerto del Ingress se calcula solo (hoy era 30097):
+Probad desde el host. Guardad en `ING` la dirección del Ingress: la EXTERNAL-IP de MetalLB
+y, si no la hubiera, worker1 con el NodePort:
 
 ```bash
-NP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}'); echo $NP
-curl http://10.10.10.11:$NP/servers-G9
-for i in $(seq 1 9); do curl -s http://10.10.10.11:$NP/servers-G9 | grep 'class="pod"'; done
+ING=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'); echo $ING
+```
+
+Debe salir una IP `10.10.10.2x`. **Solo si sale vacío**, usad el NodePort:
+
+```bash
+ING=10.10.10.11:$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}'); echo $ING
+```
+
+```bash
+curl http://$ING/servers-G9
+for i in $(seq 1 9); do curl -s http://$ING/servers-G9 | grep 'class="pod"'; done
+curl -s -o /dev/null -w '%{http_code}\n' http://$ING/otra-ruta      # -> 404
 ```
 
 Deben aparecer los nombres de los **3 Pods** repartidos.
 
-📸 El bucle de `curl` y la página en el navegador: `http://10.10.10.11:30097/servers-G9`
-(con el puerto que haya salido).
+📸 El bucle de `curl` y la página en el navegador: `http://<EXTERNAL-IP>/servers-G9`.
 
 ### 8.5 Pod y Service del admin
 
@@ -478,7 +522,7 @@ kubectl describe networkpolicy admin-allow-ssh-from-host
 ```bash
 kubectl -n pruebas-np exec tester -- wget -T 5 -qO- http://$WEBIP          # -> download timed out
 ssh root@terraform "timeout 5 bash -c '</dev/tcp/10.10.10.11/30022' && echo ABIERTO || echo BLOQUEADO"   # -> BLOQUEADO
-curl -s -o /dev/null -w '%{http_code}\n' http://10.10.10.11:$NP/servers-G9      # -> 200 (el Ingress sigue)
+curl -s -o /dev/null -w '%{http_code}\n' http://$ING/servers-G9      # -> 200 (el Ingress sigue)
 ssh -i shared/keys/host_admin_rsa -p 30022 adminuser@10.10.10.11 'echo dentro'  # -> dentro (el host sigue)
 ```
 
@@ -642,7 +686,9 @@ Si queréis dejarlo todo limpio (hace copia, `terraform destroy` y borra los LXC
 | `mysql` falla por TLS/SSL desde un Pod | Añadid `--skip-ssl` |
 | Tras escalar o `destroy`, P9 vuelve a dar `[info]` | `./scripts/07-cliente-bd.sh` otra vez |
 | Queréis la captura del "antes" de las NetworkPolicy | Solo se puede antes de aplicarlas: despliegue por partes (Paso 8.6) |
-| Abrís una terminal nueva | Volved a definir `tf() { ... }` y, si la usáis, `NP=...` |
+| Abrís una terminal nueva | Volved a definir `tf() { ... }` y, si la usáis, `ING=...` |
+| El Ingress no tiene EXTERNAL-IP (`<pending>`) | `sudo vnx -f k8s_lab-calico.xml -x config_metallb` en `/mnt/tmp/k8s_lab-calico-v02` (Paso 3.0) |
+| `terraform: command not found` | `sudo vnx -f k8s_lab-terraform.xml -x install-terraform`; si sigue, correo a los profesores |
 | Se ha reiniciado un worker | `./scripts/03-vlan-workers.sh` |
 | `tf destroy` da `Pod admin still exists` | Esperad un rato, comprobad con `kubectl get pod admin` que ya no está y repetid `tf destroy`. Si no desaparece: `kubectl delete pod admin --grace-period=0 --force` |
 
@@ -683,3 +729,12 @@ memoria es mejor ir paso a paso por las capturas del antes y el después.
     `terraform destroy`, se borró el resto de recursos (`Destroy complete!`), porque
     Terraform solo elimina lo que queda. Si no desaparece, se puede forzar con
     `kubectl delete pod admin --grace-period=0 --force`.
+11. **El Ingress Controller no tenía EXTERNAL-IP** (incidencia del laboratorio avisada por
+    los profesores el 20/11). Su Service es LoadBalancer y depende de MetalLB, cuyas imágenes
+    (en quay.io) no se podían descargar desde la red del laboratorio. Mientras tanto se
+    accedió por el NodePort del Ingress en worker1 (`10.10.10.11:30097`). Con el escenario
+    regenerado, el script 01 comprueba MetalLB y lanza `config_metallb` si hace falta, y el
+    acceso pasa a ser la EXTERNAL-IP (`10.10.10.20-30`).
+12. **Base de datos**: la imagen LXC traía MySQL 8.0 y elegimos MariaDB. Los profesores
+    aclararon después que valía cualquier SGBD instalable como paquete; mantuvimos MariaDB
+    porque, tras quitar MySQL 8.0 (puntos 4 y 5), funcionaba y pasaba todas las pruebas.
